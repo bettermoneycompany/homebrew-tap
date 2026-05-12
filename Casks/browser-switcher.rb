@@ -1,13 +1,14 @@
 cask "browser-switcher" do
-  version "0.1.0"
-  sha256 "ceacac8d2851f52c86ab24aa3ee7dab46ba6e24b13cce86533b8c8d0cccd48c5"
+  version "0.2.0"
+  sha256 "40a2a70dde5544828da1a9eedbef088811479dca1c0d50b315615b8bd57c7cc2"
 
   url "https://github.com/cjustice/browser-switcher/releases/download/v#{version}/BrowserSwitcher-#{version}.zip"
   name "Browser Switcher"
-  desc "Auto-switches default browser between Chrome and Firefox on a schedule"
+  desc "Drives Finicky to switch the default browser on a weekday schedule"
   homepage "https://github.com/cjustice/browser-switcher"
 
   depends_on macos: ">= :ventura"
+  depends_on cask: "finicky"
 
   app "Browser Switcher.app"
 
