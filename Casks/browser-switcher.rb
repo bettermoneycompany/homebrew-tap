@@ -11,6 +11,13 @@ cask "browser-switcher" do
 
   app "Browser Switcher.app"
 
+  postflight do
+    # Strip Gatekeeper quarantine xattr so the ad-hoc-signed app launches
+    # without prompting. Remove this once the app is properly notarized.
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Browser Switcher.app"]
+  end
+
   zap trash: [
     "~/Library/Preferences/com.connorjustice.BrowserSwitcher.plist",
   ]
