@@ -21,11 +21,15 @@ class ActionPinTests(unittest.TestCase):
         self.workflow = self.root / ".github/workflows/test.yml"
         self.workflow.parent.mkdir()
 
-    def assert_check(self, passes: bool) -> None:
+    def assert_check(self, passes: bool, error: str = "must pin") -> None:
         result = subprocess.run(
             [sys.executable, str(self.script)], capture_output=True, text=True
         )
         self.assertEqual(result.returncode, 0 if passes else 1, result.stderr)
+        if not passes:
+            self.assertIn(error, result.stderr)
+            self.assertRegex(result.stderr, r"(?im)^.*\.ya?ml:")
+            self.assertNotIn("Traceback", result.stderr)
 
     def test_workflow_references(self) -> None:
         cases = [
@@ -77,13 +81,21 @@ class ActionPinTests(unittest.TestCase):
         for text, passes in cases:
             with self.subTest(text=text):
                 self.workflow.write_text(text)
-                self.assert_check(passes)
+                error = "invalid YAML" if text == "jobs: [broken\n" else "must pin"
+                self.assert_check(passes, error)
 
     def test_nested_actions_and_tracked_ignored_files(self) -> None:
         self.workflow.write_text(BASE + "      - run: echo ok\n")
         action = self.root / "a/b/c/d/e/f/action.yaml"
         action.parent.mkdir(parents=True)
         cases = [
+            ("runs:\n  using: docker\n  image: DOCKER://node:latest\n", False),
+            (
+                "runs:\n  using: docker\n  image: DOCKER://node@sha256:"
+                + "a" * 64
+                + "\n",
+                True,
+            ),
             (
                 "runs:\n  using: Composite\n  steps:\n    - uses: owner/repo@main\n",
                 False,
@@ -109,6 +121,29 @@ class ActionPinTests(unittest.TestCase):
         (self.root / ".gitignore").write_text("a/\n")
         action.write_text(cases[0][0])
         self.assert_check(False)
+
+    def test_action_filename_in_workflow_directory(self) -> None:
+        self.workflow.write_text(BASE + "      - run: echo ok\n")
+        for filename in ("action.yml", "Action.YAML"):
+            action = self.workflow.with_name(filename)
+            for text, passes in [
+                (
+                    "runs:\n  using: Composite\n  steps:\n"
+                    "    - uses: owner/repo@main\n",
+                    False,
+                ),
+                (
+                    "runs:\n  using: composite\n  steps:\n"
+                    f"    - uses: owner/repo@{SHA}\n",
+                    True,
+                ),
+                ("runs:\n  using: docker\n  image: DOCKER://node:latest\n", False),
+                ("runs:\n  using: docker\n  image: Dockerfile\n", True),
+            ]:
+                with self.subTest(filename=filename, text=text):
+                    action.write_text(text)
+                    self.assert_check(passes)
+            action.unlink()
 
 
 if __name__ == "__main__":

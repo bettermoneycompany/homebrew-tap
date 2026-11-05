@@ -6,14 +6,16 @@ from pathlib import Path
 import yaml
 
 GITHUB_SHA = re.compile(r"[^@\s]+/[^@\s]+@[0-9a-fA-F]{40}\Z")
-DOCKER_DIGEST = re.compile(r"docker://[^@\s]+@sha256:[0-9a-fA-F]{64}\Z")
+DOCKER_DIGEST = re.compile(r"docker://[^@\s]+@sha256:[0-9a-fA-F]{64}\Z", re.IGNORECASE)
 
 
 def check_reference(reference: object, location: str, errors: list[str]) -> None:
     if isinstance(reference, str):
         if reference.startswith("./"):
             return
-        pattern = DOCKER_DIGEST if reference.startswith("docker://") else GITHUB_SHA
+        pattern = (
+            DOCKER_DIGEST if reference.lower().startswith("docker://") else GITHUB_SHA
+        )
         if pattern.fullmatch(reference):
             return
     errors.append(
@@ -43,11 +45,15 @@ def main() -> int:
     checked = 0
     for name in sorted(set(paths)):
         path = Path(name)
-        workflow = path.parent == Path(".github/workflows") and path.suffix in (
-            ".yml",
-            ".yaml",
+        workflow = (
+            path.parent.as_posix().lower() == ".github/workflows"
+            and path.suffix.lower()
+            in (
+                ".yml",
+                ".yaml",
+            )
         )
-        if not workflow and path.name not in ("action.yml", "action.yaml"):
+        if not workflow and path.name.lower() not in ("action.yml", "action.yaml"):
             continue
         checked += 1
         try:
@@ -61,11 +67,11 @@ def main() -> int:
                 if "uses" in job:
                     check_reference(job["uses"], f"{location}.uses", errors)
                 check_steps(job.get("steps", []), f"{location}.steps", errors)
-        else:
+        if path.name.lower() in ("action.yml", "action.yaml"):
             runs = document.get("runs", {})
             check_steps(runs.get("steps", []), f"{name}:runs.steps", errors)
             image = runs.get("image")
-            if isinstance(image, str) and image.startswith("docker://"):
+            if isinstance(image, str) and image.lower().startswith("docker://"):
                 check_reference(image, f"{name}:runs.image", errors)
     if errors:
         print("\n".join(errors), file=sys.stderr)
