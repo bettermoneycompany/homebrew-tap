@@ -5,7 +5,6 @@ from pathlib import Path
 
 import yaml
 
-
 GITHUB_SHA = re.compile(r"[^@\s]+/[^@\s]+@[0-9a-fA-F]{40}\Z")
 DOCKER_DIGEST = re.compile(r"docker://[^@\s]+@sha256:[0-9a-fA-F]{64}\Z")
 
@@ -18,7 +17,7 @@ def check_reference(reference: object, location: str, errors: list[str]) -> None
         if pattern.fullmatch(reference):
             return
     errors.append(
-        f"{location}: {reference!r} must use a full commit SHA (or Docker SHA-256 digest)"
+        f"{location}: {reference!r} must pin a full commit SHA or Docker SHA-256 digest"
     )
 
 
@@ -32,15 +31,21 @@ def check_steps(
 
 def main() -> int:
     root = Path(__file__).resolve().parents[2]
-    paths = subprocess.check_output(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=root
-    ).decode().split("\0")
+    paths = (
+        subprocess.check_output(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            cwd=root,
+        )
+        .decode()
+        .split("\0")
+    )
     errors = []
     checked = 0
     for name in sorted(set(paths)):
         path = Path(name)
         workflow = path.parent == Path(".github/workflows") and path.suffix in (
-            ".yml", ".yaml"
+            ".yml",
+            ".yaml",
         )
         if not workflow and path.name not in ("action.yml", "action.yaml"):
             continue
@@ -56,8 +61,12 @@ def main() -> int:
                 if "uses" in job:
                     check_reference(job["uses"], f"{location}.uses", errors)
                 check_steps(job.get("steps", []), f"{location}.steps", errors)
-        elif document.get("runs", {}).get("using") == "composite":
-            check_steps(document["runs"].get("steps", []), f"{name}:runs.steps", errors)
+        else:
+            runs = document.get("runs", {})
+            check_steps(runs.get("steps", []), f"{name}:runs.steps", errors)
+            image = runs.get("image")
+            if isinstance(image, str) and image.startswith("docker://"):
+                check_reference(image, f"{name}:runs.image", errors)
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1

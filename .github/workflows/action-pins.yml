@@ -26,6 +26,8 @@ jobs:
       - name: Install YAML parser
         run: |
           python3 -m venv "$RUNNER_TEMP/action-pins-venv"
-          "$RUNNER_TEMP/action-pins-venv/bin/pip" install --require-hashes -r .github/scripts/action-pin-requirements.txt
+          "$RUNNER_TEMP/action-pins-venv/bin/pip" install --only-binary=:all: --require-hashes -r .github/scripts/action-pin-requirements.txt
+      - name: Test the pinning rule
+        run: '"$RUNNER_TEMP/action-pins-venv/bin/python" .github/scripts/test-action-pins.py'
       - name: Check action pins
         run: '"$RUNNER_TEMP/action-pins-venv/bin/python" .github/scripts/check-action-pins.py'
