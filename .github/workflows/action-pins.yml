@@ -9,18 +9,23 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: action-pins-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   action-pins:
     name: Pinned GitHub Actions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Install YAML parser
+        run: |
+          python3 -m venv "$RUNNER_TEMP/action-pins-venv"
+          "$RUNNER_TEMP/action-pins-venv/bin/pip" install --require-hashes -r .github/scripts/action-pin-requirements.txt
       - name: Check action pins
-        uses: suzuki-shunsuke/pinact-action@b1a1f46bb10f2908950d95f626ca8cc109e2cf7d # v3.1.0
-        with:
-          fix: "false"
-          no_api: "true"
+        run: '"$RUNNER_TEMP/action-pins-venv/bin/python" .github/scripts/check-action-pins.py'
